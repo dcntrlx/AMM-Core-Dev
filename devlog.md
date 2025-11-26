@@ -1,1 +1,2 @@
 1. Proposed first structure of AMM: IAMMPair, its realization: AMMPair, AMMFactory. I will also have to instanse an ERC20 token, for this purposes ERC20 realization from OpenZeppelin will be used as the most appropriate option.
+2. 

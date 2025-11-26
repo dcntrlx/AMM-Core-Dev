@@ -6,8 +6,9 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
-contract AMMPair is IAMMPair, ERC20 {
+contract AMMPair is IAMMPair, ERC20, ReentrancyGuardTransient {
     using Math for uint256;
     using SafeERC20 for IERC20;
     address public immutable token0;
@@ -16,6 +17,7 @@ contract AMMPair is IAMMPair, ERC20 {
     uint256 private _reserve0;
     uint256 private _reserve1;
     uint256 public immutable MINIMUM_LIQUIDITY = 1000;
+    uint256 public immutable FEE_BPS = 30;
 
     constructor(address _token0, address _token1) ERC20("LiquidityProviderToken", "LPT") {
         token0 = _token0;
@@ -53,7 +55,7 @@ contract AMMPair is IAMMPair, ERC20 {
         _updateReserves();
     }
 
-    function swap(uint256 amount0Out, uint256 amount1Out, address to) external {
+    function swap(uint256 amount0Out, uint256 amount1Out, address to) external nonReentrant {
         require(amount0Out > 0 || amount1Out > 0, "At least one output must be greater than zero");
         require(_reserve0 > amount0Out && _reserve1 > amount1Out, "AMM's reserves can cover this exchange");
 
@@ -68,7 +70,9 @@ contract AMMPair is IAMMPair, ERC20 {
         uint256 amount1In = IERC20(token1).balanceOf(address(this)) + amount1Out - _reserve1;
 
         require(
-            _reserve0 * _reserve1 <= (_reserve0 - amount0Out + amount0In) * (_reserve1 - amount1Out + amount1In),
+            _reserve0 * _reserve1 * 10000 ** 2
+                <= (IERC20(token0).balanceOf(address(this)) * 10000 - amount0In * FEE_BPS)
+                    * (IERC20(token1).balanceOf(address(this)) * 10000 - amount1In * 3),
             "Product of tokens in pool must be constant"
         );
 
