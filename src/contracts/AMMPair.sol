@@ -5,9 +5,11 @@ import {IAMMPair} from "../interfaces/IAMMPair.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract AMMPair is IAMMPair, ERC20 {
     using Math for uint256;
+    using SafeERC20 for IERC20;
     address public immutable token0;
     address public immutable token1;
 
@@ -39,6 +41,41 @@ contract AMMPair is IAMMPair, ERC20 {
             );
         }
 
+        _updateReserves();
+    }
+
+    function burn(address to) external {
+        uint256 differenceLP = balanceOf(address(this));
+        IERC20(token0).safeTransfer(to, differenceLP.mulDiv(IERC20(token0).balanceOf(address(this)), totalSupply()));
+        IERC20(token1).safeTransfer(to, differenceLP.mulDiv(IERC20(token1).balanceOf(address(this)), totalSupply()));
+
+        _burn(address(this), differenceLP);
+        _updateReserves();
+    }
+
+    function swap(uint256 amount0Out, uint256 amount1Out, address to) external {
+        require(amount0Out > 0 || amount1Out > 0, "At least one output must be greater than zero");
+        require(_reserve0 > amount0Out && _reserve1 > amount1Out, "AMM's reserves can cover this exchange");
+
+        if (amount0Out > 0) {
+            IERC20(token0).safeTransfer(to, amount0Out);
+        }
+        if (amount1Out > 0) {
+            IERC20(token1).safeTransfer(to, amount1Out);
+        }
+
+        uint256 amount0In = IERC20(token0).balanceOf(address(this)) + amount0Out - _reserve0;
+        uint256 amount1In = IERC20(token1).balanceOf(address(this)) + amount1Out - _reserve1;
+
+        require(
+            _reserve0 * _reserve1 <= (_reserve0 - amount0Out + amount0In) * (_reserve1 - amount1Out + amount1In),
+            "Product of tokens in pool must be constant"
+        );
+
+        _updateReserves();
+    }
+
+    function _updateReserves() internal {
         _reserve0 = IERC20(token0).balanceOf(address(this));
         _reserve1 = IERC20(token1).balanceOf(address(this));
     }
