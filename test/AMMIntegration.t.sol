@@ -39,7 +39,7 @@ contract AMMIntegration is Test {
         _createPair();
     }
 
-    function test_mintPair() public {
+    function _mintPair() internal {
         address liquidityProvider = makeAddr("liquidityProvider");
         uint256 amountToken0 = 1 * 10 ** 3;
         uint256 amountToken1 = 3 * 10 ** 6;
@@ -56,6 +56,23 @@ contract AMMIntegration is Test {
             "Math formula for minting must be correct"
         );
         console.log("Liquidity: ", liquidity);
+    }
+
+    function test_mintPair() public {
+        _mintPair();
+    }
+
+    function test_burnPair() public {
+        address liquidityProvider = makeAddr("liquidityProvider");
+        _mintPair();
+        vm.startPrank(liquidityProvider);
+        pair.transfer(address(pair), pair.balanceOf(liquidityProvider));
+        (uint256 amount0Out, uint256 amount1Out) = pair.burn(liquidityProvider);
+        console.log(amount0Out, amount1Out);
+        assertEq(pair.balanceOf(liquidityProvider), 0, "Balance in LP of liquidityProvider after burn must be 0");
+        assertTrue(
+            amount0Out >= 2945227 && amount1Out >= 981, "Balances in tokens after burn should be constrained by: "
+        );
     }
 }
 
