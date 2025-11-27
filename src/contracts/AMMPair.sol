@@ -32,7 +32,7 @@ contract AMMPair is IAMMPair, ERC20, ReentrancyGuardTransient {
         uint256 totalSupply = totalSupply();
         if (totalSupply == 0) {
             liquidity = Math.sqrt(differenceToken0 * differenceToken1) - MINIMUM_LIQUIDITY;
-            _mint(address(0), MINIMUM_LIQUIDITY);
+            _mint(address(0xdead), MINIMUM_LIQUIDITY);
             _mint(to, liquidity);
         } else {
             liquidity = Math.min(
