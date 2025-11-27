@@ -42,10 +42,10 @@ contract AMMIntegration is Test {
         _createPair();
     }
 
-    function _mintPair() internal {
+    function _mintPair() internal returns (uint256 liquidity, uint256 amountToken0, uint256 amountToken1) {
         address liquidityProvider = makeAddr("liquidityProvider");
-        uint256 amountToken0 = 1 * 10 ** 3;
-        uint256 amountToken1 = 3 * 10 ** 6;
+        amountToken0 = 1 * 10 ** 3;
+        amountToken1 = 3 * 10 ** 6;
         deal(address(token0), liquidityProvider, amountToken0);
         deal(address(token1), liquidityProvider, amountToken1);
 
@@ -53,12 +53,14 @@ contract AMMIntegration is Test {
 
         token0.transfer(address(pair), amountToken0);
         token1.transfer(address(pair), amountToken1);
-        uint256 liquidity = pair.mint(liquidityProvider);
-        require(
-            liquidity == Math.sqrt(amountToken0 * amountToken1) - MINIMUM_LIQUIDITY,
-            "Math formula for minting must be correct"
+        liquidity = pair.mint(liquidityProvider);
+
+        assertEq(
+            liquidity,
+            Math.sqrt(amountToken0 * amountToken1) - MINIMUM_LIQUIDITY,
+            "Liquidity minted should match formula"
         );
-        console.log("Liquidity: ", liquidity);
+        vm.stopPrank();
     }
 
     function test_mintPair() public {
@@ -67,31 +69,37 @@ contract AMMIntegration is Test {
 
     function test_burnPair() public {
         address liquidityProvider = makeAddr("liquidityProvider");
-        _mintPair();
+        (uint256 liquidity, uint256 amountToken0, uint256 amountToken1) = _mintPair();
+
         vm.startPrank(liquidityProvider);
-        pair.transfer(address(pair), pair.balanceOf(liquidityProvider));
+        pair.transfer(address(pair), liquidity);
         (uint256 amount0Out, uint256 amount1Out) = pair.burn(liquidityProvider);
-        console.log(amount0Out, amount1Out);
+
         assertEq(pair.balanceOf(liquidityProvider), 0, "Balance in LP of liquidityProvider after burn must be 0");
-        assertTrue(
-            amount1Out >= 2945227 && amount0Out >= 981, "Balances in tokens after burn should be constrained by: "
-        );
+
+        uint256 totalSupply = liquidity + MINIMUM_LIQUIDITY;
+        uint256 expectedAmount0 = Math.mulDiv(liquidity, amountToken0, totalSupply);
+        uint256 expectedAmount1 = Math.mulDiv(liquidity, amountToken1, totalSupply);
+
+        assertEq(amount0Out, expectedAmount0, "Amount0 out should match proportional share");
+        assertEq(amount1Out, expectedAmount1, "Amount1 out should match proportional share");
     }
 
     function test_swapPair() public {
         uint256 amount0Out = 2;
         uint256 amount1Out = 0;
-        uint256 amount0In = 0;
         uint256 amount1In = 6100;
         address user = makeAddr("User");
 
         _mintPair();
-        deal(address(token1), user, 6100);
+        deal(address(token1), user, amount1In);
 
         vm.startPrank(user);
         token1.transfer(address(pair), amount1In);
         pair.swap(amount0Out, amount1Out, user);
-        console.log(token0.balanceOf(user));
+
+        assertEq(token0.balanceOf(user), amount0Out, "User should receive exact amount0Out");
+        assertEq(token1.balanceOf(user), 0, "User sent all token1");
     }
 }
 
