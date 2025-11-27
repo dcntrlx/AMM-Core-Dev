@@ -31,6 +31,9 @@ contract AMMIntegration is Test {
 
     function _createPair() public {
         pair = Pair(factory.createPair(address(token0), address(token1)));
+        if (pair.token0() == address(token1)) {
+            (token0, token1) = (token1, token0);
+        }
     }
 
     function setUp() public {
@@ -71,8 +74,24 @@ contract AMMIntegration is Test {
         console.log(amount0Out, amount1Out);
         assertEq(pair.balanceOf(liquidityProvider), 0, "Balance in LP of liquidityProvider after burn must be 0");
         assertTrue(
-            amount0Out >= 2945227 && amount1Out >= 981, "Balances in tokens after burn should be constrained by: "
+            amount1Out >= 2945227 && amount0Out >= 981, "Balances in tokens after burn should be constrained by: "
         );
+    }
+
+    function test_swapPair() public {
+        uint256 amount0Out = 2;
+        uint256 amount1Out = 0;
+        uint256 amount0In = 0;
+        uint256 amount1In = 6100;
+        address user = makeAddr("User");
+
+        _mintPair();
+        deal(address(token1), user, 6100);
+
+        vm.startPrank(user);
+        token1.transfer(address(pair), amount1In);
+        pair.swap(amount0Out, amount1Out, user);
+        console.log(token0.balanceOf(user));
     }
 }
 
